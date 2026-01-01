@@ -1,0 +1,2 @@
+rootProject.name = "market-notification-app"
+include ':app'
