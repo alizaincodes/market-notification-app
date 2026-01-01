@@ -28,8 +28,9 @@ jobs:
       - name: Build Debug APK
         run: ./gradlew assembleDebug
 
-      - name: Upload APK Artifact
+      - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: MarketNotificationApp-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: MarketNotificationApp-debug-apks
+          # Upload any APK produced (including split/ABI-specific and universal APKs)
+          path: app/build/outputs/apk/**/*.apk
