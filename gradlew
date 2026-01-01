@@ -24,7 +24,13 @@ fi
 # shellcheck source=/dev/null
 if [ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]; then
   # shellcheck disable=SC1090
+  # Temporarily disable 'set -u' (treat unset vars as errors) while sourcing
+  # SDKMAN init script. SDKMAN's init may reference variables that are not
+  # exported yet in non-interactive shells; with 'set -u' they cause the
+  # script to abort with "unbound variable". Disable and restore after.
+  set +u
   source "$HOME/.sdkman/bin/sdkman-init.sh"
+  set -u
 else
   echo "Could not source SDKMAN init script. Exiting." >&2
   exit 1
