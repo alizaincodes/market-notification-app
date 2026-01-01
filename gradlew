@@ -2,7 +2,14 @@
 set -euo pipefail
 # Minimal gradlew shim: if 'gradle' is available, use it; otherwise install via SDKMAN and use it.
 if command -v gradle >/dev/null 2>&1; then
-  exec gradle "$@"
+  # If system gradle exists, prefer it only if it's compatible (major version 8).
+  GRADLE_VER=$(gradle -v 2>/dev/null | awk '/Gradle/ {print $2; exit}') || true
+  GRADLE_MAJOR=${GRADLE_VER%%.*}
+  if [ -n "$GRADLE_MAJOR" ] && [ "$GRADLE_MAJOR" -eq 8 ] 2>/dev/null; then
+    exec gradle "$@"
+  else
+    echo "Detected Gradle version: ${GRADLE_VER:-unknown}. Installing Gradle 8.2 via SDKMAN for compatibility..."
+  fi
 fi
 
 if [ -z "${HOME:-}" ]; then
@@ -26,7 +33,10 @@ fi
 echo "Installing Gradle 8.2 via SDKMAN (if not already installed)..."
 sdk install gradle 8.2 || true
 
-if command -v gradle >/dev/null 2>&1; then
+GRADLE_822_PATH="$HOME/.sdkman/candidates/gradle/8.2/bin/gradle"
+if [ -x "$GRADLE_822_PATH" ]; then
+  exec "$GRADLE_822_PATH" "$@"
+elif command -v gradle >/dev/null 2>&1; then
   exec gradle "$@"
 else
   echo "gradle command still not found after SDKMAN install." >&2
