@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">Crypto Sentinel</string>
+    
+    <string name="symbol_hint">Symbol (e.g. BTCUSDT)</string>
+    <string name="price_hint">Target Price</string>
+    <string name="above_label">Alert when Above</string>
+    <string name="below_label">Alert when Below</string>
+    <string name="start_btn">Start Monitoring</string>
+    <string name="stop_btn">Stop Monitoring</string>
+    
+    <string name="notif_channel_name">Price Monitor</string>
+    <string name="notif_alert_title">TARGET REACHED!</string>
+    <string name="notif_stop_action">Stop Ringing</string>
+    
+    <string name="error_empty_fields">Please fill in all fields</string>
+    <string name="error_network">Network issue detected. Retrying...</string>
+</resources>
