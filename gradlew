@@ -16,35 +16,37 @@ if [ -z "${HOME:-}" ]; then
   HOME=~
 fi
 
-if [ ! -d "$HOME/.sdkman" ]; then
-  echo "SDKMAN not found — installing SDKMAN to obtain Gradle (non-interactive)..."
-  curl -s "https://get.sdkman.io" | bash
+# If we already have a local Gradle 8.2 unpacked, use it.
+GRADLE_VERSION=8.2
+INSTALL_ROOT="$HOME/.gradle/candidates/gradle"
+INSTALL_DIR="$INSTALL_ROOT/gradle-$GRADLE_VERSION"
+GRADLE_BIN="$INSTALL_DIR/bin/gradle"
+
+if [ -x "$GRADLE_BIN" ]; then
+  exec "$GRADLE_BIN" "$@"
 fi
 
-# shellcheck source=/dev/null
-if [ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]; then
-  # shellcheck disable=SC1090
-  # Temporarily disable 'set -u' (treat unset vars as errors) while sourcing
-  # SDKMAN init script. SDKMAN's init may reference variables that are not
-  # exported yet in non-interactive shells; with 'set -u' they cause the
-  # script to abort with "unbound variable". Disable and restore after.
-  set +u
-  source "$HOME/.sdkman/bin/sdkman-init.sh"
-  set -u
-else
-  echo "Could not source SDKMAN init script. Exiting." >&2
-  exit 1
+echo "Gradle $GRADLE_VERSION not found locally — downloading distribution..."
+DIST_ZIP="gradle-${GRADLE_VERSION}-bin.zip"
+DOWNLOAD_URL="https://services.gradle.org/distributions/${DIST_ZIP}"
+TMPZIP=$(mktemp /tmp/gradle.XXXX.zip)
+if ! curl -fsSL -o "$TMPZIP" "$DOWNLOAD_URL"; then
+  echo "Failed to download Gradle from $DOWNLOAD_URL" >&2
+  rm -f "$TMPZIP"
+  exit 3
 fi
 
-echo "Installing Gradle 8.2 via SDKMAN (if not already installed)..."
-sdk install gradle 8.2 || true
+mkdir -p "$INSTALL_ROOT"
+unzip -q "$TMPZIP" -d "$INSTALL_ROOT" || {
+  echo "Failed to unzip Gradle distribution." >&2
+  rm -f "$TMPZIP"
+  exit 4
+}
+rm -f "$TMPZIP"
 
-GRADLE_822_PATH="$HOME/.sdkman/candidates/gradle/8.2/bin/gradle"
-if [ -x "$GRADLE_822_PATH" ]; then
-  exec "$GRADLE_822_PATH" "$@"
-elif command -v gradle >/dev/null 2>&1; then
-  exec gradle "$@"
+if [ -x "$GRADLE_BIN" ]; then
+  exec "$GRADLE_BIN" "$@"
 else
-  echo "gradle command still not found after SDKMAN install." >&2
-  exit 2
+  echo "gradle binary not found after extracting distribution." >&2
+  exit 5
 fi
