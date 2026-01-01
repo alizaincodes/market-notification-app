@@ -3,6 +3,7 @@ package com.example.cryptoalert;
 import android.app.*;
 import android.content.*;
 import android.media.*;
+import android.widget.Toast;
 import android.net.Uri;
 import android.os.*;
 import androidx.core.app.NotificationCompat;
@@ -83,6 +84,15 @@ public void onFailure(Call call, IOException e) {
         Intent intent = new Intent(this, MonitorService.class).setAction("STOP_RINGING");
         PendingIntent pi = PendingIntent.getService(this, 0, intent, PendingIntent.FLAG_IMMUTABLE);
 
+        // Ensure alert channel exists with high importance for full-screen intents
+        NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            NotificationChannel alertChan = new NotificationChannel("ALERT_CHAN", "Alerts", NotificationManager.IMPORTANCE_HIGH);
+            alertChan.setDescription("Price alert channel");
+            alertChan.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+            nm.createNotificationChannel(alertChan);
+        }
+
         Notification n = new NotificationCompat.Builder(this, "ALERT_CHAN")
             .setContentTitle("PRICE ALERT: " + symbol)
             .setContentText("Price hit: " + price + ". Click to stop alarm.")
@@ -92,7 +102,6 @@ public void onFailure(Call call, IOException e) {
             .setContentIntent(pi)
             .build();
 
-        NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         nm.notify(2, n);
     }
 
