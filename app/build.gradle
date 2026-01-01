@@ -1,0 +1,32 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.example.cryptoalert'
+    compileSdk 34 // Or 33/32 depending on your Android Studio version
+
+    defaultConfig {
+        applicationId "com.example.cryptoalert"
+        minSdk 23 // Android 6.0
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    // ENABLE VIEW BINDING HERE
+    buildFeatures {
+        viewBinding true
+    }
+}
+
+dependencies {
+    // UI Components
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.11.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+
+    // Networking (OkHttp) & JSON
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'org.json:json:20231013' // (Optional, usually included in Android SDK)
+}
