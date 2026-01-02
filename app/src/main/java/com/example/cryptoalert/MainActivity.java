@@ -30,8 +30,10 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        sp = getSharedPreferences("prefs", MODE_PRIVATE);
-        loadData(); // Load existing alerts from storage
+    sp = getSharedPreferences("prefs", MODE_PRIVATE);
+    loadData(); // Load existing alerts from storage
+    // Fetch symbols at startup and populate search/autocomplete
+    fetchSymbols();
     String uriStr = sp.getString("ringtone", null);
     if (uriStr != null) selectedRingtoneUri = Uri.parse(uriStr);
 
@@ -47,15 +49,22 @@ public class MainActivity extends AppCompatActivity {
 
         // Setup Search (Simple hardcoded list for example, 
         // but you can populate this via the Binance API fetch we discussed)
-        AutoCompleteTextView search = findViewById(R.id.searchCoin);
-        String[] commonCoins = {"BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"};
-        ArrayAdapter<String> searchAdapter = new ArrayAdapter<>(this, android.R.layout.simple_dropdown_item_1line, commonCoins);
-        search.setAdapter(searchAdapter);
+    AutoCompleteTextView search = findViewById(R.id.searchCoin);
+    // initial adapter empty; will be populated when symbols are fetched
+    ArrayAdapter<String> searchAdapter = new ArrayAdapter<>(this, android.R.layout.simple_dropdown_item_1line, new ArrayList<>());
+    search.setAdapter(searchAdapter);
 
         // Setup Add Button
         findViewById(R.id.btnAdd).setOnClickListener(v -> {
-            // Fetch coin list from Binance and show selection dialog
-            fetchCoinListAndShowDialog(search.getText().toString().toUpperCase().trim());
+            // Open coin picker activity
+            ArrayList<String> symbolsList = new ArrayList<>(symbols);
+            if (symbolsList.isEmpty()) {
+                Toast.makeText(this, "Loading coin list, please wait...", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            Intent it = new Intent(this, CoinPickerActivity.class);
+            it.putStringArrayListExtra(CoinPickerActivity.EXTRA_SYMBOLS, symbolsList);
+            startActivityForResult(it, 4321);
         });
 
         // Start the background engine
@@ -133,7 +142,48 @@ public class MainActivity extends AppCompatActivity {
                 selectedRingtoneUri = uri;
                 Toast.makeText(this, "Ringtone selected", Toast.LENGTH_SHORT).show();
             }
+            return;
         }
+        if (requestCode == 4321 && resultCode == RESULT_OK) {
+            String sym = data.getStringExtra(CoinPickerActivity.EXTRA_SELECTED);
+            if (sym != null) showAddDialog(sym);
+            return;
+        }
+    }
+
+    private final List<String> symbols = new ArrayList<>();
+
+    private void fetchSymbols() {
+        new Thread(() -> {
+            try {
+                okhttp3.OkHttpClient c = new okhttp3.OkHttpClient();
+                okhttp3.Request req = new okhttp3.Request.Builder().url("https://api.binance.com/api/v3/exchangeInfo").build();
+                okhttp3.Response resp = c.newCall(req).execute();
+                if (!resp.isSuccessful()) throw new RuntimeException("HTTP " + resp.code());
+                String body = resp.body().string();
+                org.json.JSONObject json = new org.json.JSONObject(body);
+                org.json.JSONArray arr = json.optJSONArray("symbols");
+                List<String> list = new ArrayList<>();
+                if (arr != null) {
+                    for (int i = 0; i < arr.length(); i++) {
+                        org.json.JSONObject s = arr.optJSONObject(i);
+                        if (s == null) continue;
+                        String sym = s.optString("symbol", null);
+                        if (sym != null && !sym.isEmpty()) list.add(sym);
+                    }
+                }
+                runOnUiThread(() -> {
+                    symbols.clear(); symbols.addAll(list);
+                    AutoCompleteTextView search = findViewById(R.id.searchCoin);
+                    ArrayAdapter<String> a = (ArrayAdapter<String>) search.getAdapter();
+                    a.clear(); a.addAll(symbols);
+                    a.notifyDataSetChanged();
+                });
+            } catch (Exception e) {
+                e.printStackTrace();
+                runOnUiThread(() -> Toast.makeText(this, "Failed to load coin list", Toast.LENGTH_SHORT).show());
+            }
+        }).start();
     }
 
     private void fetchCoinListAndShowDialog(String prefill) {
