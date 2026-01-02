@@ -21,6 +21,8 @@ public class MonitorService extends Service {
     private ScheduledExecutorService scheduler;
     private MediaPlayer mediaPlayer;
     private List<CryptoAlert> alerts = new ArrayList<>();
+    private final Object alertsLock = new Object();
+    private Uri ringtoneUri = null;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -40,7 +42,11 @@ public class MonitorService extends Service {
     }
 
     private void checkPrices() {
-        for (CryptoAlert alert : alerts) {
+        List<CryptoAlert> snapshot;
+        synchronized (alertsLock) {
+            snapshot = new ArrayList<>(alerts);
+        }
+        for (CryptoAlert alert : snapshot) {
             Request request = new Request.Builder()
                 .url("https://api.binance.com/api/v3/ticker/price?symbol=" + alert.symbol)
                 .build();
@@ -59,23 +65,34 @@ public class MonitorService extends Service {
                     } catch (Exception e) { e.printStackTrace(); }
                 }
                 @Override
-public void onFailure(Call call, IOException e) {
-    // This tells the user something is wrong without crashing the app
-    new Handler(Looper.getMainLooper()).post(() -> 
-        Toast.makeText(getApplicationContext(), "Network Error: Checking Binance failed.", Toast.LENGTH_SHORT).show()
-    );
-}
+                public void onFailure(Call call, IOException e) {
+                    // This tells the user something is wrong without crashing the app
+                    new Handler(Looper.getMainLooper()).post(() ->
+                        Toast.makeText(getApplicationContext(), "Network Error: Checking Binance failed.", Toast.LENGTH_SHORT).show()
+                    );
+                }
             });
         }
     }
 
     private void startAlarm(String symbol, double price) {
         if (mediaPlayer != null && mediaPlayer.isPlaying()) return;
-        
-        Uri ringtone = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
-        mediaPlayer = MediaPlayer.create(this, ringtone);
-        mediaPlayer.setLooping(true);
-        mediaPlayer.start();
+
+        Uri ringtone = ringtoneUri;
+        if (ringtone == null) ringtone = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+        try {
+            mediaPlayer = new MediaPlayer();
+            mediaPlayer.setAudioStreamType(AudioManager.STREAM_ALARM);
+            mediaPlayer.setDataSource(this, ringtone);
+            mediaPlayer.setLooping(true);
+            mediaPlayer.prepare();
+            mediaPlayer.start();
+        } catch (Exception e) {
+            e.printStackTrace();
+            // fallback to default create
+            mediaPlayer = MediaPlayer.create(this, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM));
+            if (mediaPlayer != null) { mediaPlayer.setLooping(true); mediaPlayer.start(); }
+        }
 
         showTriggerNotification(symbol, price);
     }
@@ -113,7 +130,11 @@ public void onFailure(Call call, IOException e) {
     private void loadAlerts() {
         SharedPreferences sp = getSharedPreferences("prefs", MODE_PRIVATE);
         String json = sp.getString("alerts", "[]");
-        alerts = new Gson().fromJson(json, new TypeToken<List<CryptoAlert>>(){}.getType());
+        List<CryptoAlert> loaded = new Gson().fromJson(json, new TypeToken<List<CryptoAlert>>(){}.getType());
+        if (loaded == null) loaded = new ArrayList<>();
+        synchronized (alertsLock) { alerts = loaded; }
+        String ru = sp.getString("ringtone", null);
+        if (ru != null) ringtoneUri = Uri.parse(ru);
     }
 
     private Notification createNotification(String msg) {
