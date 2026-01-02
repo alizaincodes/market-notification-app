@@ -24,6 +24,8 @@ public class MainActivity extends AppCompatActivity {
     private Gson gson = new Gson();
     private static final int REQ_PICK_RINGTONE = 1234;
     private Uri selectedRingtoneUri = null;
+    private View btnAddView;
+    private ProgressBar progressLoading;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -36,6 +38,14 @@ public class MainActivity extends AppCompatActivity {
     fetchSymbols();
     String uriStr = sp.getString("ringtone", null);
     if (uriStr != null) selectedRingtoneUri = Uri.parse(uriStr);
+        // Restore cached symbols if present to make UI responsive
+        String cached = sp.getString("symbols_cache", null);
+        if (cached != null) {
+            try {
+                List<String> cachedList = gson.fromJson(cached, new TypeToken<List<String>>(){}.getType());
+                if (cachedList != null) symbols.addAll(cachedList);
+            } catch (Exception ignored) {}
+        }
 
         // Setup RecyclerView
         RecyclerView rv = findViewById(R.id.rvAlerts);
@@ -47,6 +57,20 @@ public class MainActivity extends AppCompatActivity {
         });
         rv.setAdapter(adapter);
 
+        // swipe to delete
+        androidx.recyclerview.widget.ItemTouchHelper ith = new androidx.recyclerview.widget.ItemTouchHelper(
+            new androidx.recyclerview.widget.ItemTouchHelper.SimpleCallback(0, androidx.recyclerview.widget.ItemTouchHelper.LEFT | androidx.recyclerview.widget.ItemTouchHelper.RIGHT) {
+                @Override public boolean onMove(androidx.recyclerview.widget.RecyclerView r, androidx.recyclerview.widget.RecyclerView.ViewHolder h, androidx.recyclerview.widget.RecyclerView.ViewHolder t) { return false; }
+                @Override public void onSwiped(androidx.recyclerview.widget.RecyclerView.ViewHolder h, int dir) {
+                    int pos = h.getAdapterPosition();
+                    alertList.remove(pos);
+                    saveData();
+                    adapter.notifyItemRemoved(pos);
+                }
+            }
+        );
+        ith.attachToRecyclerView(rv);
+
         // Setup Search (Simple hardcoded list for example, 
         // but you can populate this via the Binance API fetch we discussed)
     AutoCompleteTextView search = findViewById(R.id.searchCoin);
@@ -55,7 +79,9 @@ public class MainActivity extends AppCompatActivity {
     search.setAdapter(searchAdapter);
 
         // Setup Add Button
-        findViewById(R.id.btnAdd).setOnClickListener(v -> {
+        btnAddView = findViewById(R.id.btnAdd);
+        progressLoading = findViewById(R.id.progressLoading);
+        btnAddView.setOnClickListener(v -> {
             // Open coin picker activity
             ArrayList<String> symbolsList = new ArrayList<>(symbols);
             if (symbolsList.isEmpty()) {
@@ -172,12 +198,17 @@ public class MainActivity extends AppCompatActivity {
                         if (sym != null && !sym.isEmpty()) list.add(sym);
                     }
                 }
+                // cache the list
+                sp.edit().putString("symbols_cache", gson.toJson(list)).apply();
                 runOnUiThread(() -> {
                     symbols.clear(); symbols.addAll(list);
                     AutoCompleteTextView search = findViewById(R.id.searchCoin);
                     ArrayAdapter<String> a = (ArrayAdapter<String>) search.getAdapter();
                     a.clear(); a.addAll(symbols);
                     a.notifyDataSetChanged();
+                    // hide spinner and enable add button
+                    if (progressLoading != null) progressLoading.setVisibility(View.GONE);
+                    if (btnAddView != null) btnAddView.setEnabled(true);
                 });
             } catch (Exception e) {
                 e.printStackTrace();

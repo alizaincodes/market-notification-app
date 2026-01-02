@@ -38,7 +38,10 @@ public class MonitorService extends Service {
     private void scheduleTask() {
         if (scheduler != null) scheduler.shutdown();
         scheduler = Executors.newSingleThreadScheduledExecutor();
-        scheduler.scheduleAtFixedRate(this::checkPrices, 0, 1, TimeUnit.MINUTES);
+        SharedPreferences sp = getSharedPreferences("prefs", MODE_PRIVATE);
+        int intervalSec = sp.getInt("poll_interval_sec", 60);
+        if (intervalSec < 15) intervalSec = 15; // prevent too-frequent
+        scheduler.scheduleAtFixedRate(this::checkPrices, 0, intervalSec, TimeUnit.SECONDS);
     }
 
     private void checkPrices() {
